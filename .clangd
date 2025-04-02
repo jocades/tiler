@@ -1,0 +1,9 @@
+CompileFlags:
+  Add: [
+    -xc++,
+    -std=c++20,
+    -stdlib=libc++,
+    -Wall,
+    -Wextra,
+    -I/opt/homebrew/opt/raylib/include
+  ]

@@ -81,7 +81,7 @@ struct Map {
     };
 
     start = {
-      .pos = {bounds.x + 5, bounds.y + bounds.height / 2 - 50},
+      .pos = {bounds.x, bounds.y + bounds.height / 2 - 50},
       .size = 100,
     };
 
@@ -91,12 +91,12 @@ struct Map {
     };
 
     checkpoints.push_back(Square{
-      .pos = {bounds.x + bounds.width / 2, bounds.y + 25},
+      .pos = {bounds.x + bounds.width / 2, bounds.y + bounds.height * 0.20f},
       .size = 50,
     });
 
     checkpoints.push_back(Square{
-      .pos = {bounds.x + bounds.width / 2, bounds.y + bounds.height - 25 - 50},
+      .pos = {bounds.x + bounds.width / 2, bounds.y + bounds.height * 0.80f - 25 - 50},
       .size = 50,
     });
 
@@ -106,7 +106,7 @@ struct Map {
   void initCircles() {
     float length = bounds.width - 200;
     for (size_t i = 0; i < circles.size(); i++) {
-      circles[i].pos = {bounds.x + length / 5 * (i + 1), bounds.y + bounds.height / 2};
+      circles[i].pos = {bounds.x + 25 + length / 5 * (i + 1), bounds.y + bounds.height / 2};
       circles[i].radius = 12.5;
     }
   }
@@ -189,6 +189,7 @@ int main() {
 
       case Complete: {
         if (IsKeyPressed(KEY_ENTER)) {
+          map.current_checkpoint = -1;
           map.reset(player);
           current_screen = Gameplay;
         }

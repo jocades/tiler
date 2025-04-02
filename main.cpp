@@ -5,6 +5,13 @@
 const Color BACKGROUND = GetColor(0x282828ff);
 Vector2 screen{1280, 720};
 
+enum GameScreen {
+  Start,
+  Gameplay,
+  Complete,
+  GameOver,
+};
+
 struct Player {
   Vector2 pos;
   Vector2 size;
@@ -21,11 +28,13 @@ struct Player {
   }
 };
 
-Player player{
-  .pos = screen / 3,
-  .size = {25, 25},
-  .dir = {0, 0},
-  .speed = 500,
+struct vec2 : public Vector2 {
+  vec2(float x, float y) : Vector2{x, y} {}
+
+  void norm() {
+    float length = sqrtf(x * x + y * y);
+    if (length > 0) *this /= length;
+  }
 };
 
 void normalize(Vector2& v) {
@@ -52,88 +61,181 @@ struct Square {
   }
 };
 
-struct Vec2 {
-  float x;
-  float y;
+struct Map {
+  Rectangle bounds;
+  Square start;
+  Square finish;
+  std::array<Circle, 5> circles;
+
+  Map() {
+    bounds = {
+      .x = screen.x / 2 - 400,
+      .y = screen.y / 2 - 250,
+      .width = 800,
+      .height = 500,
+    };
+
+    start = {
+      .pos = {bounds.x + 5, bounds.y + bounds.height / 2 - 50},
+      .size = 100,
+    };
+
+    finish = {
+      .pos = {bounds.x + bounds.width - 100, bounds.y + bounds.height / 2 - 50},
+      .size = 100,
+    };
+
+    initCircles();
+  }
+
+  void initCircles() {
+    float length = bounds.width - 200;
+    for (size_t i = 0; i < circles.size(); i++) {
+      circles[i].pos = {bounds.x + length / 5 * (i + 1), bounds.y + 40};
+      circles[i].radius = 12.5;
+    }
+  }
+
+  void playerStart(Player& player) {
+    player.pos.x = start.pos.x + start.size / 2;
+    player.pos.y = start.pos.y + start.size / 2;
+  }
+
+  void reset(Player& player) {
+    playerStart(player);
+    initCircles();
+  }
 };
 
 int main() {
   InitWindow(screen.x, screen.y, "Tiler");
 
-  Rectangle level{
-    .x = screen.x / 2 - 400,
-    .y = screen.y / 2 - 250,
-    .width = 800,
-    .height = 500,
+  GameScreen current_screen = Start;
+
+  Player player{
+    .pos = {0, 0},
+    .size = {25, 25},
+    .dir = {0, 0},
+    .speed = 250,
   };
 
-  Square start{
-    .pos = {level.x + 5, level.y + level.height / 2 - 50},
-    .size = 100,
-  };
+  Map map{};
 
-  Square finish{
-    .pos = {level.x + level.width - 100, level.y + level.height / 2 - 50},
-    .size = 100,
-  };
+  map.playerStart(player);
 
-  player.pos.x = start.pos.x + start.size / 2;
-  player.pos.y = start.pos.y + start.size / 2;
-
-  Circle circle{
-    .pos = {level.x + level.width / 2, level.y + 5},
-    .radius = 25.0f / 2,
-  };
-
-  float ball_speed = 250;
-
-  float length = level.width - 200;
-
-  std::array<Circle, 5> circles;
-  for (size_t i = 0; i < circles.size(); i++) {
-    circles[i].pos = {level.x + length / 5 * (i + 1), level.y};
-    circles[i].radius = 12.5;
-  }
+  float ball_speed = 300;
 
   while (!WindowShouldClose()) {
-    float dt = GetFrameTime();
+    switch (current_screen) {
+      case Start: {
+        if (IsKeyPressed(KEY_ENTER)) {
+          current_screen = Gameplay;
+        }
+      } break;
 
-    circle.pos.y += ball_speed * dt;
-    if (circle.pos.y + circle.radius >= level.y + level.height ||
-        circle.pos.y - circle.radius <= level.y) {
-      ball_speed *= -1;
-    }
+      case Gameplay: {
+        float dt = GetFrameTime();
 
-    player.dir.x = IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
-    player.dir.y = IsKeyDown(KEY_DOWN) - IsKeyDown(KEY_UP);
-    normalize(player.dir);
+        player.dir.x = IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
+        player.dir.y = IsKeyDown(KEY_DOWN) - IsKeyDown(KEY_UP);
+        normalize(player.dir);
 
-    player.pos += player.dir * player.speed * dt;
+        player.pos += player.dir * player.speed * dt;
 
-    bool collision = CheckCollisionCircleRec(circle.pos, circle.radius, player.rect());
+        for (auto& circle : map.circles) {
+          circle.pos.y += ball_speed * dt;
 
-    if (collision) {
-      // break;
+          if (CheckCollisionCircleRec(circle.pos, circle.radius, player.rect())) {
+            current_screen = GameOver;
+          }
+
+          if (circle.pos.y + circle.radius >= map.bounds.y + map.bounds.height ||
+              circle.pos.y - circle.radius <= map.bounds.y) {
+            ball_speed *= -1;
+          }
+        }
+
+        if (CheckCollisionRecs(player.rect(), map.finish.rect())) {
+          current_screen = Complete;
+        }
+
+      } break;
+
+      case Complete: {
+        if (IsKeyPressed(KEY_ENTER)) {
+          map.reset(player);
+          current_screen = Gameplay;
+        }
+      } break;
+
+      case GameOver: {
+        if (IsKeyPressed(KEY_ENTER)) {
+          map.reset(player);
+          current_screen = Gameplay;
+        }
+      } break;
     }
 
     BeginDrawing();
     ClearBackground(BACKGROUND);
 
-    DrawRectangleRec(start.rect(), LIGHTGRAY);
-    DrawRectangleRec(finish.rect(), LIGHTGRAY);
+    switch (current_screen) {
+      case Start: {
+        const char* text = "START SCREEN";
+        float font_size = 40;
+        float text_width = MeasureText(text, font_size);
+        DrawText(
+          text,
+          screen.x / 2 - text_width / 2,
+          screen.y / 2 - font_size / 2,
+          font_size,
+          LIGHTGRAY
+        );
+      } break;
 
-    DrawRectangleV(player.pos, player.size, ORANGE);
-    DrawCircleV(circle.pos, circle.radius, BLUE);
+      case Gameplay: {
+        DrawRectangleRec(map.start.rect(), LIGHTGRAY);
+        DrawRectangleRec(map.finish.rect(), LIGHTGRAY);
 
-    for (const auto& circle : circles) {
-      DrawCircleV(circle.pos, circle.radius, BLUE);
-    }
+        DrawRectangleV(player.pos, player.size, ORANGE);
 
-    DrawRectangleLinesEx(level, 5, WHITE);
-    // DrawRectangleLines(level.x, level.y, level.width, level.height, WHITE);
+        for (const auto& circle : map.circles) {
+          DrawCircleV(circle.pos, circle.radius, BLUE);
+        }
 
-    if (collision) {
-      DrawCircleLinesV(circle.pos, circle.radius, RED);
+        // DrawRectangleLinesEx(level, 5, WHITE);
+        DrawRectangleLines(map.bounds.x, map.bounds.y, map.bounds.width, map.bounds.height, WHITE);
+
+        // if (collision) {
+        //   DrawCircleLinesV(circle.pos, circle.radius, RED);
+        // }
+      } break;
+
+      case Complete: {
+        const char* text = "LEVEL COMPLETE";
+        float font_size = 40;
+        float text_width = MeasureText(text, font_size);
+        DrawText(
+          text,
+          screen.x / 2 - text_width / 2,
+          screen.y / 2 - font_size / 2,
+          font_size,
+          LIGHTGRAY
+        );
+      } break;
+
+      case GameOver: {
+        const char* text = "GAME OVER";
+        float font_size = 40;
+        float text_width = MeasureText(text, font_size);
+        DrawText(
+          text,
+          screen.x / 2 - text_width / 2,
+          screen.y / 2 - font_size / 2,
+          font_size,
+          LIGHTGRAY
+        );
+      } break;
     }
 
     DrawFPS(0, 0);

@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "ops.h"
+#include "player.h"
 
 const Color BACKGROUND = GetColor(0x282828ff);
 const Color CHECKPOINT = GetColor(0x91eda9ff);
@@ -15,21 +16,21 @@ enum GameScreen {
   GameOver,
 };
 
-struct Player {
-  Vector2 pos;
-  Vector2 size;
-  Vector2 dir;
-  float speed;
-
-  Rectangle rect() const {
-    return {
-      .x = pos.x,
-      .y = pos.y,
-      .width = size.x,
-      .height = size.y,
-    };
-  }
-};
+// struct Player {
+//   Vector2 pos;
+//   Vector2 size;
+//   Vector2 dir;
+//   float speed;
+//
+//   Rectangle rect() const {
+//     return {
+//       .x = pos.x,
+//       .y = pos.y,
+//       .width = size.x,
+//       .height = size.y,
+//     };
+//   }
+// };
 
 struct vec2 : public Vector2 {
   vec2(float x, float y) : Vector2{x, y} {}
@@ -39,11 +40,6 @@ struct vec2 : public Vector2 {
     if (length > 0) *this /= length;
   }
 };
-
-void normalize(Vector2& v) {
-  float length = sqrtf((v.x * v.x) + (v.y * v.y));
-  if (length > 0) v /= length;
-}
 
 struct Circle {
   Vector2 pos;
@@ -155,11 +151,7 @@ int main() {
       case Gameplay: {
         float dt = GetFrameTime();
 
-        player.dir.x = IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
-        player.dir.y = IsKeyDown(KEY_DOWN) - IsKeyDown(KEY_UP);
-        normalize(player.dir);
-
-        player.pos += player.dir * player.speed * dt;
+        player.update(dt);
 
         for (auto& circle : map.circles) {
           circle.pos.y += ball_speed * dt;
@@ -228,7 +220,7 @@ int main() {
           DrawRectangleRec(checkpoint.rect(), CHECKPOINT);
         }
 
-        DrawRectangleV(player.pos, player.size, ORANGE);
+        player.draw();
 
         for (const auto& circle : map.circles) {
           DrawCircleV(circle.pos, circle.radius, BLUE);

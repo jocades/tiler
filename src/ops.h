@@ -54,6 +54,11 @@ inline Vector2& operator/=(Vector2& lhs, float scalar) {
   return lhs;
 }
 
+inline void normalize(Vector2& v) {
+  float length = sqrtf((v.x * v.x) + (v.y * v.y));
+  if (length > 0) v /= length;
+}
+
 inline std::ostream& operator<<(std::ostream& stream, const Vector2& pos) {
   stream << "(" << pos.x << ", " << pos.y << ")";
   return stream;

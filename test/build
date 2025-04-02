@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 
-OUT_DIR="bin"
-SRC_DIR="src"
+SRC="$1"
 
-SOURCES=$(fd . -e cpp -tf $SRC_DIR)
-DST=$OUT_DIR/main
+if [ -z "$SRC" ]; then
+    echo "BUILD_ERROR: Missing source"
+    exit 1
+fi
+
+NAME=$(basename $SRC)
+NAME="${NAME%.*}"
+OUT_DIR="test/bin"
+DST=$OUT_DIR/$NAME
 
 RAYLIB="/opt/homebrew/opt/raylib"
 COMPILATION_FLAGS="-std=c++20 -O2 -flto"
@@ -17,7 +23,7 @@ if [ "$2" == "-r" ] || [ "$2" == "--run" ]; then
 fi
 
 mkdir -p $OUT_DIR
-CMD="clang++ -o $DST $SOURCES $COMPILATION_FLAGS $WARNING_FLAGS $LINK_FLAGS"
+CMD="clang++ -o $DST $SRC $COMPILATION_FLAGS $WARNING_FLAGS $LINK_FLAGS"
 echo "BUILD: $CMD"
 $CMD
 

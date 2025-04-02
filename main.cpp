@@ -1,8 +1,11 @@
 #include <raylib.h>
 
+#include <vector>
+
 #include "ops.h"
 
 const Color BACKGROUND = GetColor(0x282828ff);
+const Color CHECKPOINT = GetColor(0x91eda9ff);
 Vector2 screen{1280, 720};
 
 enum GameScreen {
@@ -65,7 +68,9 @@ struct Map {
   Rectangle bounds;
   Square start;
   Square finish;
+  std::vector<Square> checkpoints;
   std::array<Circle, 5> circles;
+  int current_checkpoint = -1;
 
   Map() {
     bounds = {
@@ -85,24 +90,38 @@ struct Map {
       .size = 100,
     };
 
+    checkpoints.push_back(Square{
+      .pos = {bounds.x + bounds.width / 2, bounds.y + 25},
+      .size = 50,
+    });
+
+    checkpoints.push_back(Square{
+      .pos = {bounds.x + bounds.width / 2, bounds.y + bounds.height - 25 - 50},
+      .size = 50,
+    });
+
     initCircles();
   }
 
   void initCircles() {
     float length = bounds.width - 200;
     for (size_t i = 0; i < circles.size(); i++) {
-      circles[i].pos = {bounds.x + length / 5 * (i + 1), bounds.y + 40};
+      circles[i].pos = {bounds.x + length / 5 * (i + 1), bounds.y + bounds.height / 2};
       circles[i].radius = 12.5;
     }
   }
 
-  void playerStart(Player& player) {
-    player.pos.x = start.pos.x + start.size / 2;
-    player.pos.y = start.pos.y + start.size / 2;
+  void setPlayer(Player& player) {
+    if (current_checkpoint != -1) {
+      const auto& checkpoint = checkpoints[current_checkpoint];
+      player.pos = checkpoint.pos + checkpoint.size / 2 - player.size / 2;
+    } else {
+      player.pos = start.pos + start.size / 2 - player.size / 2;
+    }
   }
 
   void reset(Player& player) {
-    playerStart(player);
+    setPlayer(player);
     initCircles();
   }
 };
@@ -121,7 +140,7 @@ int main() {
 
   Map map{};
 
-  map.playerStart(player);
+  map.setPlayer(player);
 
   float ball_speed = 300;
 
@@ -152,6 +171,13 @@ int main() {
           if (circle.pos.y + circle.radius >= map.bounds.y + map.bounds.height ||
               circle.pos.y - circle.radius <= map.bounds.y) {
             ball_speed *= -1;
+          }
+        }
+
+        for (size_t i = 0; i < map.checkpoints.size(); i++) {
+          if (CheckCollisionRecs(player.rect(), map.checkpoints[i].rect())) {
+            map.current_checkpoint = i;
+            break;
           }
         }
 
@@ -197,6 +223,10 @@ int main() {
         DrawRectangleRec(map.start.rect(), LIGHTGRAY);
         DrawRectangleRec(map.finish.rect(), LIGHTGRAY);
 
+        for (auto& checkpoint : map.checkpoints) {
+          DrawRectangleRec(checkpoint.rect(), CHECKPOINT);
+        }
+
         DrawRectangleV(player.pos, player.size, ORANGE);
 
         for (const auto& circle : map.circles) {
@@ -206,9 +236,6 @@ int main() {
         // DrawRectangleLinesEx(level, 5, WHITE);
         DrawRectangleLines(map.bounds.x, map.bounds.y, map.bounds.width, map.bounds.height, WHITE);
 
-        // if (collision) {
-        //   DrawCircleLinesV(circle.pos, circle.radius, RED);
-        // }
       } break;
 
       case Complete: {

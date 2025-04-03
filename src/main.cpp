@@ -11,6 +11,7 @@ const Color CHECKPOINT = GetColor(0x91eda9ff);
 
 const Vector2 screen{1280, 720};
 const float tile_size = 40.0f;
+const float half_tile = tile_size / 2;
 const int cols = screen.x / tile_size;
 const int rows = screen.y / tile_size;
 
@@ -28,6 +29,15 @@ void drawGrid() {
 struct Circle {
   Vector2 pos;
   float radius;
+};
+
+struct Obstacle : public Circle {
+  Vector2 dir;
+  float speed;
+
+  Obstacle(Vector2 pos, float radius) : Circle{pos, radius} {}
+  Obstacle(Vector2 pos, float radius, Vector2 dir, float speed)
+      : Circle{pos, radius}, dir(dir), speed(speed) {}
 };
 
 struct Square {
@@ -51,14 +61,15 @@ struct Level {
   std::vector<Square> checkpoints;
   std::vector<Circle> circles;
   std::vector<Circle> coins;
+  std::vector<Obstacle> obstacles;
   int current_checkpoint = -1;
 
   Level() {
     bounds = {
       .x = (cols / 2.0f - 8) * tile_size,
-      .y = (rows / 2.0f - 5) * tile_size,
-      .width = 17 * tile_size,
-      .height = 11 * tile_size,
+      .y = (rows / 2.0f - 4) * tile_size,
+      .width = 16 * tile_size,
+      .height = 8 * tile_size,
     };
 
     start = {
@@ -71,35 +82,54 @@ struct Level {
       .size = 2 * tile_size,
     };
 
-    checkpoints.push_back(Square{
-      .pos = {bounds.x + 8 * tile_size, bounds.y + 2 * tile_size},
-      .size = tile_size,
-    });
+    // checkpoints.push_back(Square{
+    //   .pos = {bounds.x + 8 * tile_size, bounds.y + 2 * tile_size},
+    //   .size = tile_size,
+    // });
+    //
+    // checkpoints.push_back(Square{
+    //   .pos = {bounds.x + 8 * tile_size, bounds.y + bounds.height - 3 * tile_size},
+    //   .size = tile_size,
+    // });
 
-    checkpoints.push_back(Square{
-      .pos = {bounds.x + 8 * tile_size, bounds.y + bounds.height - 3 * tile_size},
-      .size = tile_size,
-    });
-
-    initCircles();
+    initObstacles();
     initCoins();
+  }
+
+  void initObstacles() {
+    int num_tiles = abs(start.pos.x + start.size - finish.pos.x) / tile_size;
+    for (int i = 0; i < num_tiles; i++) {
+      float x = (bounds.x + (2 + i) * tile_size) + half_tile;
+      if (i % 2 == 0) {
+        obstacles.emplace_back(Vector2{x, bounds.y + half_tile + 20}, 12.5, Vector2{0, 1}, 200);
+      } else {
+        obstacles.emplace_back(
+          Vector2{x, bounds.y + bounds.height - half_tile - 20},
+          12.5,
+          Vector2{0, -1},
+          200
+        );
+      }
+    }
   }
 
   void initCircles() {
     int num_tiles = abs(start.pos.x + start.size - finish.pos.x) / tile_size;
 
     for (int i = 0; i < num_tiles; i++) {
-      if (i % 2 == 0) continue;
-      circles.push_back(Circle{
-        .pos = {(bounds.x + (2 + i) * tile_size + tile_size / 2), bounds.y + bounds.height / 2},
-        .radius = 12.5,
-      });
+      if (i % 2 == 0) {
+        circles.push_back(Circle{
+          .pos = {(bounds.x + (2 + i) * tile_size + tile_size / 2), bounds.y + bounds.height / 2},
+          .radius = 12.5,
+        });
+      } else {
+      }
     }
   }
 
   void initCoins() {
     coins.push_back(Circle{
-      .pos = {bounds.x + 4 * tile_size + tile_size / 2, bounds.y + 3 * tile_size},
+      .pos = {bounds.x + 8 * tile_size, bounds.y + 4 * tile_size},
       .radius = 10,
     });
   }
@@ -115,8 +145,8 @@ struct Level {
 
   void reset(Player& player) {
     setPlayer(player);
-    circles.clear();
-    initCircles();
+    obstacles.clear();
+    initObstacles();
     coins.clear();
     initCoins();
   }
@@ -131,7 +161,7 @@ struct Game {
   };
 
   Level level;
-  Player player = {.size = {25, 25}, .speed = 250};
+  Player player = {.size = {25, 25}, .speed = 200};
   Screen current_screen = Start;
 
   Game() {
@@ -154,18 +184,18 @@ struct Game {
     player.update(dt);
     auto player_rect = player.rect();
 
-    for (auto& circle : level.circles) {
-      circle.pos.y += ball_speed * dt;
-
-      if (CheckCollisionCircleRec(circle.pos, circle.radius, player_rect)) {
+    for (auto& obs : level.obstacles) {
+      if (CheckCollisionCircleRec(obs.pos, obs.radius, player_rect)) {
         current_screen = GameOver;
         return;
       }
 
-      if (circle.pos.y + circle.radius >= level.bounds.y + level.bounds.height ||
-          circle.pos.y - circle.radius <= level.bounds.y) {
-        ball_speed *= -1;
+      if (obs.pos.y <= level.bounds.y + half_tile ||
+          obs.pos.y >= level.bounds.y + level.bounds.height - half_tile) {
+        obs.dir.y = -obs.dir.y;
       }
+
+      obs.pos += obs.dir * obs.speed * dt;
     }
 
     for (size_t i = 0; i < level.checkpoints.size(); i++) {
@@ -231,8 +261,12 @@ struct Game {
 
     player.draw();
 
-    for (const auto& circle : level.circles) {
-      DrawCircleV(circle.pos, circle.radius, BLUE);
+    // for (const auto& circle : level.circles) {
+    //   DrawCircleV(circle.pos, circle.radius, BLUE);
+    // }
+
+    for (const auto& obs : level.obstacles) {
+      DrawCircleV(obs.pos, obs.radius, BLUE);
     }
 
     for (const auto& coin : level.coins) {

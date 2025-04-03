@@ -56,6 +56,7 @@ struct Square {
 
 struct Level {
   Rectangle bounds;
+  std::vector<Vector2> perimeter;
   Square start;
   Square finish;
   std::vector<Square> checkpoints;
@@ -70,6 +71,22 @@ struct Level {
       .y = (rows / 2.0f - 4) * tile_size,
       .width = 16 * tile_size,
       .height = 8 * tile_size,
+    };
+
+    perimeter = {
+      {bounds.x + tile_size * 2, bounds.y},
+      {bounds.x + bounds.width - tile_size * 2, bounds.y},
+      {bounds.x + bounds.width - tile_size * 2, bounds.y + tile_size * 3},
+      {bounds.x + bounds.width, bounds.y + tile_size * 3},
+      {bounds.x + bounds.width, bounds.y + tile_size * 5},
+      {bounds.x + bounds.width - tile_size * 2, bounds.y + tile_size * 5},
+      {bounds.x + bounds.width - tile_size * 2, bounds.y + bounds.height},
+      {bounds.x + tile_size * 2, bounds.y + bounds.height},
+      {bounds.x + tile_size * 2, bounds.y + tile_size * 5},
+      {bounds.x, bounds.y + tile_size * 5},
+      {bounds.x, bounds.y + tile_size * 3},
+      {bounds.x + tile_size * 2, bounds.y + tile_size * 3},
+      {bounds.x + tile_size * 2, bounds.y},
     };
 
     start = {
@@ -168,6 +185,7 @@ struct Game {
     SetTraceLogLevel(LOG_TRACE);
     TraceLog(LOG_TRACE, "cols=%d rows=%d", cols, rows);
     InitWindow(screen.x, screen.y, "Tiler");
+    SetTargetFPS(144);
   }
 
   void updateStartScreen() {
@@ -182,34 +200,73 @@ struct Game {
     float dt = GetFrameTime();
 
     player.update(dt);
-    auto player_rect = player.rect();
+    auto rect = player.rect();
 
-    for (auto& obs : level.obstacles) {
-      if (CheckCollisionCircleRec(obs.pos, obs.radius, player_rect)) {
-        current_screen = GameOver;
-        return;
-      }
+    // Vector2 sides[4] = {
+    //   {rect.x + rect.width / 2, rect.y},                // top
+    //   {rect.x + rect.width, rect.y + rect.height / 2},  // right
+    //   {rect.x + rect.width / 2, rect.y + rect.height},  // bottom
+    //   {rect.x, rect.y + rect.height / 2},               // left
+    // };
+    //
+    // for (size_t i = 0; i < level.perimeter.size() - 1; i++) {
+    //   for (const auto& corner : sides) {
+    //     if (CheckCollisionPointLine(corner, level.perimeter[i], level.perimeter[i + 1], 2)) {
+    //       if (player.dir.x == 1) {
+    //         player.pos.x = level.perimeter[i].x - player.size.x;
+    //       }
+    //       if (player.dir.x == -1) {
+    //         player.pos.x = level.perimeter[i].x;
+    //       }
+    //       if (player.dir.y == 1) {
+    //         player.pos.y = level.perimeter[i].y - player.size.y;
+    //       }
+    //       if (player.dir.y == -1) {
+    //         player.pos.y = level.perimeter[i].y;
+    //       }
+    //     }
+    //   }
+    // }
 
-      if (obs.pos.y <= level.bounds.y + half_tile ||
-          obs.pos.y >= level.bounds.y + level.bounds.height - half_tile) {
-        obs.dir.y = -obs.dir.y;
-      }
+    // if (player.pos.x <= level.bounds.x) {
+    //   player.pos.x = level.bounds.x;
+    // }
+    // if (player.pos.x >= level.bounds.x + level.bounds.width - player.size.x) {
+    //   player.pos.x = level.bounds.x + level.bounds.width - player.size.x;
+    // }
+    // if (player.pos.y <= level.bounds.y) {
+    //   player.pos.y = level.bounds.y;
+    // }
+    // if (player.pos.y >= level.bounds.y + level.bounds.height - player.size.y) {
+    //   player.pos.y = level.bounds.y + level.bounds.height - player.size.y;
+    // }
 
-      obs.pos += obs.dir * obs.speed * dt;
-    }
+    // for (auto& obs : level.obstacles) {
+    //   if (CheckCollisionCircleRec(obs.pos, obs.radius, rect)) {
+    //     current_screen = GameOver;
+    //     return;
+    //   }
+    //
+    //   if (obs.pos.y <= level.bounds.y + half_tile ||
+    //       obs.pos.y >= level.bounds.y + level.bounds.height - half_tile) {
+    //     obs.dir.y = -obs.dir.y;
+    //   }
+    //
+    //   obs.pos += obs.dir * obs.speed * dt;
+    // }
+    //
+    // for (size_t i = 0; i < level.checkpoints.size(); i++) {
+    //   if (CheckCollisionRecs(rect, level.checkpoints[i].rect())) {
+    //     level.current_checkpoint = i;
+    //     break;
+    //   }
+    // }
+    //
+    // std::erase_if(level.coins, [&rect](const Circle& coin) {
+    //   return CheckCollisionCircleRec(coin.pos, coin.radius, rect);
+    // });
 
-    for (size_t i = 0; i < level.checkpoints.size(); i++) {
-      if (CheckCollisionRecs(player_rect, level.checkpoints[i].rect())) {
-        level.current_checkpoint = i;
-        break;
-      }
-    }
-
-    std::erase_if(level.coins, [&player_rect](const Circle& coin) {
-      return CheckCollisionCircleRec(coin.pos, coin.radius, player_rect);
-    });
-
-    if (level.coins.empty() && CheckCollisionRecs(player_rect, level.finish.rect())) {
+    if (level.coins.empty() && CheckCollisionRecs(rect, level.finish.rect())) {
       current_screen = Complete;
     }
   }
@@ -261,10 +318,6 @@ struct Game {
 
     player.draw();
 
-    // for (const auto& circle : level.circles) {
-    //   DrawCircleV(circle.pos, circle.radius, BLUE);
-    // }
-
     for (const auto& obs : level.obstacles) {
       DrawCircleV(obs.pos, obs.radius, BLUE);
     }
@@ -274,13 +327,9 @@ struct Game {
       DrawCircleLinesV(coin.pos, coin.radius, BLACK);
     }
 
-    DrawRectangleLines(
-      level.bounds.x,
-      level.bounds.y,
-      level.bounds.width,
-      level.bounds.height,
-      BLACK
-    );
+    for (size_t i = 0; i < level.perimeter.size() - 1; i++) {
+      DrawLineEx(level.perimeter[i], level.perimeter[i + 1], 4, BLACK);
+    }
   }
 
   void drawCompleteScreen() {

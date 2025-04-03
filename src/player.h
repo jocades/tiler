@@ -3,9 +3,9 @@
 #include <raylib.h>
 
 struct Player {
-  Vector2 pos;
+  Vector2 pos = {0, 0};
   Vector2 size;
-  Vector2 dir;
+  Vector2 dir = {0, 0};
   float speed;
 
   Rectangle rect() const;

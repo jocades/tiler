@@ -1,6 +1,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -50,10 +51,20 @@ void resetMap() {
   }
 }
 
+std::pair<int, int> directions[4] = {{-1, 0}, {0, 1}, {1, 0}, {0, -1}};
+
 void drawMap() {
   for (int y = 0; y < rows; y++) {
     for (int x = 0; x < cols; x++) {
       if (map[y][x] == 1) {
+        // for (auto& dir : directions) {
+        //   int nx = x + dir.first;
+        //   int ny = y + dir.second;
+        //   if (!inbounds(nx, ny)) continue;
+        //   if (map[ny][nx] == 0) {
+        //
+        //   }
+        // }
         DrawRectangle(x * tile_size, y * tile_size, tile_size, tile_size, RED);
       }
     }

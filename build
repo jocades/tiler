@@ -12,7 +12,7 @@ WARNING_FLAGS="-Wall -Wextra"
 LINK_FLAGS="-I$RAYLIB/include -L$RAYLIB/lib -lraylib -framework OpenGL -framework IOKit -framework Cocoa"
 
 RUN_AFTER_BUILD=0
-if [ "$2" == "-r" ] || [ "$2" == "--run" ]; then
+if [ "$1" == "-r" ] || [ "$1" == "--run" ]; then
     RUN_AFTER_BUILD=1
 fi
 

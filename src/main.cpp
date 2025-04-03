@@ -8,32 +8,17 @@
 const Color BACKGROUND = GetColor(0x282828ff);
 const Color CHECKPOINT = GetColor(0x91eda9ff);
 Vector2 screen{1280, 720};
+float ball_speed = 300;
 
-enum GameScreen {
+enum Screen {
   Start,
   Gameplay,
   Complete,
   GameOver,
 };
 
-// struct Player {
-//   Vector2 pos;
-//   Vector2 size;
-//   Vector2 dir;
-//   float speed;
-//
-//   Rectangle rect() const {
-//     return {
-//       .x = pos.x,
-//       .y = pos.y,
-//       .width = size.x,
-//       .height = size.y,
-//     };
-//   }
-// };
-
-struct vec2 : public Vector2 {
-  vec2(float x, float y) : Vector2{x, y} {}
+struct Vec2 : public Vector2 {
+  Vec2(float x, float y) : Vector2{x, y} {}
 
   void norm() {
     float length = sqrtf(x * x + y * y);
@@ -60,7 +45,7 @@ struct Square {
   }
 };
 
-struct Map {
+struct Level {
   Rectangle bounds;
   Square start;
   Square finish;
@@ -68,7 +53,7 @@ struct Map {
   std::array<Circle, 5> circles;
   int current_checkpoint = -1;
 
-  Map() {
+  Level() {
     bounds = {
       .x = screen.x / 2 - 400,
       .y = screen.y / 2 - 250,
@@ -122,145 +107,163 @@ struct Map {
   }
 };
 
-int main() {
-  InitWindow(screen.x, screen.y, "Tiler");
+struct Game {
+  Level level;
+  Player player = {.size = {25, 25}, .speed = 250};
+  Screen current_screen = Start;
 
-  GameScreen current_screen = Start;
+  Game() { InitWindow(screen.x, screen.y, "Tiler"); }
 
-  Player player{
-    .pos = {0, 0},
-    .size = {25, 25},
-    .dir = {0, 0},
-    .speed = 250,
-  };
+  void updateStartScreen() {
+    level.setPlayer(player);
 
-  Map map{};
+    if (IsKeyPressed(KEY_ENTER)) {
+      current_screen = Gameplay;
+    }
+  }
 
-  map.setPlayer(player);
+  void updateGameplayScreen() {
+    float dt = GetFrameTime();
 
-  float ball_speed = 300;
+    player.update(dt);
 
-  while (!WindowShouldClose()) {
-    switch (current_screen) {
-      case Start: {
-        if (IsKeyPressed(KEY_ENTER)) {
-          current_screen = Gameplay;
-        }
-      } break;
+    for (auto& circle : level.circles) {
+      circle.pos.y += ball_speed * dt;
 
-      case Gameplay: {
-        float dt = GetFrameTime();
+      if (CheckCollisionCircleRec(circle.pos, circle.radius, player.rect())) {
+        current_screen = GameOver;
+        return;
+      }
 
-        player.update(dt);
-
-        for (auto& circle : map.circles) {
-          circle.pos.y += ball_speed * dt;
-
-          if (CheckCollisionCircleRec(circle.pos, circle.radius, player.rect())) {
-            current_screen = GameOver;
-          }
-
-          if (circle.pos.y + circle.radius >= map.bounds.y + map.bounds.height ||
-              circle.pos.y - circle.radius <= map.bounds.y) {
-            ball_speed *= -1;
-          }
-        }
-
-        for (size_t i = 0; i < map.checkpoints.size(); i++) {
-          if (CheckCollisionRecs(player.rect(), map.checkpoints[i].rect())) {
-            map.current_checkpoint = i;
-            break;
-          }
-        }
-
-        if (CheckCollisionRecs(player.rect(), map.finish.rect())) {
-          current_screen = Complete;
-        }
-
-      } break;
-
-      case Complete: {
-        if (IsKeyPressed(KEY_ENTER)) {
-          map.current_checkpoint = -1;
-          map.reset(player);
-          current_screen = Gameplay;
-        }
-      } break;
-
-      case GameOver: {
-        if (IsKeyPressed(KEY_ENTER)) {
-          map.reset(player);
-          current_screen = Gameplay;
-        }
-      } break;
+      if (circle.pos.y + circle.radius >= level.bounds.y + level.bounds.height ||
+          circle.pos.y - circle.radius <= level.bounds.y) {
+        ball_speed *= -1;
+      }
     }
 
+    for (size_t i = 0; i < level.checkpoints.size(); i++) {
+      if (CheckCollisionRecs(player.rect(), level.checkpoints[i].rect())) {
+        level.current_checkpoint = i;
+        break;
+      }
+    }
+
+    if (CheckCollisionRecs(player.rect(), level.finish.rect())) {
+      current_screen = Complete;
+      return;
+    }
+  }
+
+  void updateCompleteScreen() {
+    if (IsKeyPressed(KEY_ENTER)) {
+      level.current_checkpoint = -1;
+      level.reset(player);
+      current_screen = Gameplay;
+    }
+  }
+
+  void updateGameOverScreen() {
+    if (IsKeyPressed(KEY_ENTER)) {
+      level.reset(player);
+      current_screen = Gameplay;
+    }
+  }
+
+  void update() {
+    switch (current_screen) {
+      case Start: updateStartScreen(); break;
+      case Gameplay: updateGameplayScreen(); break;
+      case Complete: updateCompleteScreen(); break;
+      case GameOver: updateGameOverScreen(); break;
+    }
+  }
+
+  void drawStartScreen() {
+    const char* text = "START SCREEN";
+    float font_size = 40;
+    float text_width = MeasureText(text, font_size);
+    DrawText(
+      text,
+      screen.x / 2 - text_width / 2,
+      screen.y / 2 - font_size / 2,
+      font_size,
+      LIGHTGRAY
+    );
+  }
+
+  void drawGameplayScreen() {
+    DrawRectangleRec(level.start.rect(), LIGHTGRAY);
+    DrawRectangleRec(level.finish.rect(), LIGHTGRAY);
+
+    for (auto& checkpoint : level.checkpoints) {
+      DrawRectangleRec(checkpoint.rect(), CHECKPOINT);
+    }
+
+    player.draw();
+
+    for (const auto& circle : level.circles) {
+      DrawCircleV(circle.pos, circle.radius, BLUE);
+    }
+
+    DrawRectangleLines(
+      level.bounds.x,
+      level.bounds.y,
+      level.bounds.width,
+      level.bounds.height,
+      WHITE
+    );
+  }
+
+  void drawCompleteScreen() {
+    const char* text = "LEVEL COMPLETE";
+    float font_size = 40;
+    float text_width = MeasureText(text, font_size);
+    DrawText(
+      text,
+      screen.x / 2 - text_width / 2,
+      screen.y / 2 - font_size / 2,
+      font_size,
+      LIGHTGRAY
+    );
+  }
+
+  void drawGameOverScreen() {
+    const char* text = "GAME OVER";
+    float font_size = 40;
+    float text_width = MeasureText(text, font_size);
+    DrawText(
+      text,
+      screen.x / 2 - text_width / 2,
+      screen.y / 2 - font_size / 2,
+      font_size,
+      LIGHTGRAY
+    );
+  }
+
+  void draw() {
     BeginDrawing();
     ClearBackground(BACKGROUND);
-
     switch (current_screen) {
-      case Start: {
-        const char* text = "START SCREEN";
-        float font_size = 40;
-        float text_width = MeasureText(text, font_size);
-        DrawText(
-          text,
-          screen.x / 2 - text_width / 2,
-          screen.y / 2 - font_size / 2,
-          font_size,
-          LIGHTGRAY
-        );
-      } break;
-
-      case Gameplay: {
-        DrawRectangleRec(map.start.rect(), LIGHTGRAY);
-        DrawRectangleRec(map.finish.rect(), LIGHTGRAY);
-
-        for (auto& checkpoint : map.checkpoints) {
-          DrawRectangleRec(checkpoint.rect(), CHECKPOINT);
-        }
-
-        player.draw();
-
-        for (const auto& circle : map.circles) {
-          DrawCircleV(circle.pos, circle.radius, BLUE);
-        }
-
-        // DrawRectangleLinesEx(level, 5, WHITE);
-        DrawRectangleLines(map.bounds.x, map.bounds.y, map.bounds.width, map.bounds.height, WHITE);
-
-      } break;
-
-      case Complete: {
-        const char* text = "LEVEL COMPLETE";
-        float font_size = 40;
-        float text_width = MeasureText(text, font_size);
-        DrawText(
-          text,
-          screen.x / 2 - text_width / 2,
-          screen.y / 2 - font_size / 2,
-          font_size,
-          LIGHTGRAY
-        );
-      } break;
-
-      case GameOver: {
-        const char* text = "GAME OVER";
-        float font_size = 40;
-        float text_width = MeasureText(text, font_size);
-        DrawText(
-          text,
-          screen.x / 2 - text_width / 2,
-          screen.y / 2 - font_size / 2,
-          font_size,
-          LIGHTGRAY
-        );
-      } break;
+      case Start: drawStartScreen(); break;
+      case Gameplay: drawGameplayScreen(); break;
+      case Complete: drawCompleteScreen(); break;
+      case GameOver: drawGameOverScreen(); break;
     }
-
     DrawFPS(0, 0);
     EndDrawing();
   }
 
-  CloseWindow();
+  void run() {
+    while (!WindowShouldClose()) {
+      update();
+      draw();
+    }
+  }
+
+  ~Game() { CloseWindow(); }
+};
+
+int main() {
+  Game game;
+  game.run();
 }

@@ -1,5 +1,7 @@
 #include <raylib.h>
 
+#include <algorithm>
+#include <optional>
 #include <vector>
 
 #include "ops.h"
@@ -48,14 +50,15 @@ struct Level {
   Square finish;
   std::vector<Square> checkpoints;
   std::vector<Circle> circles;
+  std::vector<Circle> coins;
   int current_checkpoint = -1;
 
   Level() {
     bounds = {
       .x = (cols / 2.0f - 8) * tile_size,
-      .y = (rows / 2.0f - 6) * tile_size,
+      .y = (rows / 2.0f - 5) * tile_size,
       .width = 17 * tile_size,
-      .height = 13 * tile_size,
+      .height = 11 * tile_size,
     };
 
     start = {
@@ -79,6 +82,7 @@ struct Level {
     });
 
     initCircles();
+    initCoins();
   }
 
   void initCircles() {
@@ -89,9 +93,15 @@ struct Level {
       circles.push_back(Circle{
         .pos = {(bounds.x + (2 + i) * tile_size + tile_size / 2), bounds.y + bounds.height / 2},
         .radius = 12.5,
-
       });
     }
+  }
+
+  void initCoins() {
+    coins.push_back(Circle{
+      .pos = {bounds.x + 4 * tile_size + tile_size / 2, bounds.y + 3 * tile_size},
+      .radius = 10,
+    });
   }
 
   void setPlayer(Player& player) {
@@ -105,7 +115,10 @@ struct Level {
 
   void reset(Player& player) {
     setPlayer(player);
+    circles.clear();
     initCircles();
+    coins.clear();
+    initCoins();
   }
 };
 
@@ -139,32 +152,36 @@ struct Game {
     float dt = GetFrameTime();
 
     player.update(dt);
+    auto player_rect = player.rect();
 
-    // for (auto& circle : level.circles) {
-    //   circle.pos.y += ball_speed * dt;
-    //
-    //   if (CheckCollisionCircleRec(circle.pos, circle.radius, player.rect())) {
-    //     current_screen = GameOver;
-    //     return;
-    //   }
-    //
-    //   if (circle.pos.y + circle.radius >= level.bounds.y + level.bounds.height ||
-    //       circle.pos.y - circle.radius <= level.bounds.y) {
-    //     ball_speed *= -1;
-    //   }
-    // }
-    //
-    // for (size_t i = 0; i < level.checkpoints.size(); i++) {
-    //   if (CheckCollisionRecs(player.rect(), level.checkpoints[i].rect())) {
-    //     level.current_checkpoint = i;
-    //     break;
-    //   }
-    // }
-    //
-    // if (CheckCollisionRecs(player.rect(), level.finish.rect())) {
-    //   current_screen = Complete;
-    //   return;
-    // }
+    for (auto& circle : level.circles) {
+      circle.pos.y += ball_speed * dt;
+
+      if (CheckCollisionCircleRec(circle.pos, circle.radius, player_rect)) {
+        current_screen = GameOver;
+        return;
+      }
+
+      if (circle.pos.y + circle.radius >= level.bounds.y + level.bounds.height ||
+          circle.pos.y - circle.radius <= level.bounds.y) {
+        ball_speed *= -1;
+      }
+    }
+
+    for (size_t i = 0; i < level.checkpoints.size(); i++) {
+      if (CheckCollisionRecs(player_rect, level.checkpoints[i].rect())) {
+        level.current_checkpoint = i;
+        break;
+      }
+    }
+
+    std::erase_if(level.coins, [&player_rect](const Circle& coin) {
+      return CheckCollisionCircleRec(coin.pos, coin.radius, player_rect);
+    });
+
+    if (level.coins.empty() && CheckCollisionRecs(player_rect, level.finish.rect())) {
+      current_screen = Complete;
+    }
   }
 
   void updateCompleteScreen() {
@@ -216,6 +233,11 @@ struct Game {
 
     for (const auto& circle : level.circles) {
       DrawCircleV(circle.pos, circle.radius, BLUE);
+    }
+
+    for (const auto& coin : level.coins) {
+      DrawCircleV(coin.pos, coin.radius, YELLOW);
+      DrawCircleLinesV(coin.pos, coin.radius, BLACK);
     }
 
     DrawRectangleLines(

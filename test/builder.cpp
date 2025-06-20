@@ -72,10 +72,10 @@ void drawMap() {
 
 void drawGrid(float sub = false) {
   for (int x = 0; x < cols; x++) {
-    DrawLine(x * tile_size, 0, x * tile_size, screen.y, LIGHTGRAY);
+    DrawLine(x * tile_size, 0, x * tile_size, screen.y, DARKGRAY);
   }
   for (int y = 0; y < rows; y++) {
-    DrawLine(0, y * tile_size, screen.x, y * tile_size, LIGHTGRAY);
+    DrawLine(0, y * tile_size, screen.x, y * tile_size, DARKGRAY);
   }
 
   if (!sub) return;
@@ -236,6 +236,9 @@ struct Player {
   }
 };
 
+std::vector<Vector2> obstacles;
+bool adding_obstacles = false;
+
 int main() {
   InitWindow(screen.x, screen.y, "Maps");
 
@@ -268,11 +271,15 @@ int main() {
 
     if (inbounds(x, y)) {
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-        if (map[y][x] != current_kind) {
-          map[y][x] = current_kind;
-          calculatePerimeter();
-          calculateCheckpoints();
-          printf("checkpoints = %zu\n", checkpoints.size());
+        if (!adding_obstacles) {
+          if (map[y][x] != current_kind) {
+            map[y][x] = current_kind;
+            calculatePerimeter();
+            calculateCheckpoints();
+            printf("checkpoints = %zu\n", checkpoints.size());
+          }
+        } else {
+          obstacles.push_back({x * tile_size + tile_size / 2, y * tile_size + tile_size / 2});
         }
       }
       if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
@@ -289,6 +296,7 @@ int main() {
 
     if (IsKeyPressed(KEY_F)) current_kind = Kind::Floor;
     if (IsKeyPressed(KEY_C)) current_kind = Kind::Checkpoint;
+    if (IsKeyPressed(KEY_O)) adding_obstacles = !adding_obstacles;
 
     if (IsKeyPressed(KEY_R)) resetMap();
     if (IsKeyPressed(KEY_P)) {
@@ -299,12 +307,16 @@ int main() {
     BeginDrawing();
     ClearBackground(RAYWHITE);
 
-    drawGrid();
+    drawGrid(true);
     drawMap();
     drawPerimeter();
 
     if (play) {
       DrawRectangleV(player.pos, {player.size, player.size}, ORANGE);
+    }
+
+    for (const auto& obs : obstacles) {
+      DrawCircleV(obs, 12.5, BLUE);
     }
 
     DrawFPS(0, 0);

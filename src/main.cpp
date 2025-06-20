@@ -228,43 +228,43 @@ struct Game {
     //   }
     // }
 
-    // if (player.pos.x <= level.bounds.x) {
-    //   player.pos.x = level.bounds.x;
-    // }
-    // if (player.pos.x >= level.bounds.x + level.bounds.width - player.size.x) {
-    //   player.pos.x = level.bounds.x + level.bounds.width - player.size.x;
-    // }
-    // if (player.pos.y <= level.bounds.y) {
-    //   player.pos.y = level.bounds.y;
-    // }
-    // if (player.pos.y >= level.bounds.y + level.bounds.height - player.size.y) {
-    //   player.pos.y = level.bounds.y + level.bounds.height - player.size.y;
-    // }
+    if (player.pos.x <= level.bounds.x) {
+      player.pos.x = level.bounds.x;
+    }
+    if (player.pos.x >= level.bounds.x + level.bounds.width - player.size.x) {
+      player.pos.x = level.bounds.x + level.bounds.width - player.size.x;
+    }
+    if (player.pos.y <= level.bounds.y) {
+      player.pos.y = level.bounds.y;
+    }
+    if (player.pos.y >= level.bounds.y + level.bounds.height - player.size.y) {
+      player.pos.y = level.bounds.y + level.bounds.height - player.size.y;
+    }
 
-    // for (auto& obs : level.obstacles) {
-    //   if (CheckCollisionCircleRec(obs.pos, obs.radius, rect)) {
-    //     current_screen = GameOver;
-    //     return;
-    //   }
-    //
-    //   if (obs.pos.y <= level.bounds.y + half_tile ||
-    //       obs.pos.y >= level.bounds.y + level.bounds.height - half_tile) {
-    //     obs.dir.y = -obs.dir.y;
-    //   }
-    //
-    //   obs.pos += obs.dir * obs.speed * dt;
-    // }
-    //
-    // for (size_t i = 0; i < level.checkpoints.size(); i++) {
-    //   if (CheckCollisionRecs(rect, level.checkpoints[i].rect())) {
-    //     level.current_checkpoint = i;
-    //     break;
-    //   }
-    // }
-    //
-    // std::erase_if(level.coins, [&rect](const Circle& coin) {
-    //   return CheckCollisionCircleRec(coin.pos, coin.radius, rect);
-    // });
+    for (auto& obs : level.obstacles) {
+      if (CheckCollisionCircleRec(obs.pos, obs.radius, rect)) {
+        current_screen = GameOver;
+        return;
+      }
+
+      if (obs.pos.y <= level.bounds.y + half_tile ||
+          obs.pos.y >= level.bounds.y + level.bounds.height - half_tile) {
+        obs.dir.y = -obs.dir.y;
+      }
+
+      obs.pos += obs.dir * obs.speed * dt;
+    }
+
+    for (size_t i = 0; i < level.checkpoints.size(); i++) {
+      if (CheckCollisionRecs(rect, level.checkpoints[i].rect())) {
+        level.current_checkpoint = i;
+        break;
+      }
+    }
+
+    std::erase_if(level.coins, [&rect](const Circle& coin) {
+      return CheckCollisionCircleRec(coin.pos, coin.radius, rect);
+    });
 
     if (level.coins.empty() && CheckCollisionRecs(rect, level.finish.rect())) {
       current_screen = Complete;

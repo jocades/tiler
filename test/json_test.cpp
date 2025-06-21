@@ -5,51 +5,56 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 
 using json = nlohmann::json;
 
-struct Move {
-  virtual void update() = 0;
-};
-
-struct Linear : public Move {
+struct User {
   std::string name;
-
-  Linear(const std::string& name) : name(name) {}
-
-  void update() override { std::cout << name << " subclass\n"; }
+  int age;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(User, name, age)
+
+struct vec2 {
+  float x, y;
+};
+
+void to_json(json& j, const vec2& v) {
+  j = json::array({v.x, v.y});
+}
+
+void from_json(const json& j, vec2& v) {
+  j.at(0).get_to(v.x);
+  j.at(1).get_to(v.y);
+}
+
+// void to_json(json& j, const User& u) {
+//   j = json{{"name", u.name}, {"age", u.age}};
+// }
+//
+// void from_json(const json& j, User& u) {
+//   j.at("name").get_to(u.name);
+//   j.at("age").get_to(u.age);
+// }
 
 int main() {
-  json data = {
-    {"start", {1, 2}},
-    {"obstacles",
-     {
-       {"a", {3, 3}},
-       {"b", {5, 6}},
-     }},
-  };
+  vec2 v = {2.5f, 3.2f};
+  json j = v;
 
-  Vector2 pos = {10, 20};
-  json v;
-  v["pos"] = {pos.x, pos.y};
+  std::cout << j << '\n';
+  auto v1 = j.template get<vec2>();
 
-  std::cout << v << '\n';
+  std::ofstream o("test2.json");
+  if (!o.is_open()) return 1;
+  o << j.dump();
+  o.close();
 
-  // Linear l("Jordi");
-  // std::vector<Move*> moves;
-  //
-  // moves.push_back(&l);
+  std::cout << v1.x << v1.y << '\n';
 
-  std::vector<std::unique_ptr<Move>> moves;
-  moves.emplace_back(std::make_unique<Linear>("Jordi"));
-  moves.push_back(std::make_unique<Linear>("Other"));
-
-  for (const auto& move : moves) {
-    move->update();
-  }
-
-  // std::ofstream f("test.json");
-  // if (!f.is_open()) return 1;
-  // f << data.dump();
+  std::ifstream f("test.json");
+  if (!f.is_open()) return 1;
+  json j1 = json::parse(f);
+  // std::cout << j1 << '\n';
+  // User u3 = j1.template get<User>();
 }

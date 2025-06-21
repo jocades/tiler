@@ -1,21 +1,143 @@
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
+#include <iostream>
 
+#include "json.hpp"
 #include "raylib.h"
 #include "vec2.h"
+
+using json = nlohmann::json;
 
 const vec2 win = {1280, 720};
 const int SIZE = 40;
 const int COLS = win.x / SIZE;
 const int ROWS = win.y / SIZE;
 
+void to_json(json& j, const vec2& v) {
+  j = json::array({v.x, v.y});
+}
+
+void from_json(const json& j, vec2& v) {
+  j.at(0).get_to(v.x);
+  j.at(1).get_to(v.y);
+}
+
+void from_json(const json& j, Rectangle& r) {
+  j.at(0).get_to(r.x);
+  j.at(1).get_to(r.y);
+  j.at(2).get_to(r.width);
+  j.at(3).get_to(r.height);
+}
+
+class Move {
+ public:
+  enum Kind {
+    Linear
+  };
+  Kind kind;
+  virtual void update(float dt, vec2& pos) = 0;
+  virtual ~Move() = default;
+};
+
+struct Bounds {
+  vec2 min;
+  vec2 max;
+};
+
+void from_json(const json& j, Bounds& b) {
+  j.at("min").get_to(b.min);
+  j.at("max").get_to(b.max);
+}
+
+class Linear : public Move {
+ public:
+  vec2 dir;
+  float speed;
+  Bounds bounds;
+
+  Linear(vec2 dir, float speed, Bounds bounds) : dir(dir), speed(speed), bounds(bounds) {}
+
+  void update(float dt, vec2& pos) override {
+    pos += dir * speed * dt;
+    if (dir.x != 0 && (pos.x <= bounds.min.x || pos.x >= bounds.max.x)) dir.x *= -1;
+    if (dir.y != 0 && (pos.y <= bounds.min.y || pos.y >= bounds.max.y)) dir.y *= -1;
+  }
+};
+
+struct Circle {
+  vec2 pos;
+  float radius = 10;
+  std::unique_ptr<Move> move;
+
+  // Circle(vec2 pos, std::unique_ptr<Move> move) : pos(pos), move(std::move(move)) {}
+
+  void update(float dt) {
+    move->update(dt, pos);
+  }
+
+  void draw() const {
+    DrawCircleV(pos, radius, BLUE);
+    DrawCircleLinesV(pos, radius, BLACK);
+  }
+};
+
+void from_json(const json& j, Circle& c) {
+  j.at("pos").get_to(c.pos);
+  c.pos *= SIZE;
+
+  if (j["move"]["kind"] == "linear") {
+    Bounds bounds = j["move"]["bounds"].template get<Bounds>();
+    bounds.min *= SIZE;
+    bounds.max *= SIZE;
+
+    std::unique_ptr<Linear> linear = std::make_unique<Linear>(
+      j["move"]["dir"].template get<vec2>().norm(),
+      j["move"]["speed"].template get<float>(),
+      bounds
+    );
+    c.move = std::move(linear);
+  }
+}
+
+struct Coin {
+  vec2 pos;
+  float radius = 7.5;
+
+  void draw() const {
+    DrawCircleV(pos, radius, YELLOW);
+    DrawCircleLinesV(pos, radius, BLACK);
+  }
+};
+
 class Level {
- private:
+ public:
   std::vector<std::vector<int>> map;
   const std::pair<Color, Color> TILE_COLORS = {GetColor(0xe3e3e3ff), GetColor(0xc7c7c7ff)};
 
- public:
-  Level(const std::string& path) : map(ROWS, std::vector<int>(COLS, 0)) {
-    std::ifstream file(path);
+  Rectangle start;
+  Rectangle finish;
+  std::vector<Circle> obstacles;
+  std::vector<Rectangle> checkpoints;
+
+  Level(int id) : map(ROWS, std::vector<int>(COLS, 0)) {
+    std::filesystem::path path = "levels";
+    path.append(std::to_string(id));
+
+    std::ifstream f(path / "data.json");
+    if (f.is_open()) {
+      json j = json::parse(f);
+      start = j["start"].template get<Rectangle>();
+      finish = j["finish"].template get<Rectangle>();
+      obstacles = j["balls"].template get<std::vector<Circle>>();
+      f.close();
+    }
+
+    for (auto& obs : obstacles) {
+      std::cout << obs.pos << '\n';
+    }
+
+    std::ifstream file(path / "map.txt");
     if (file.is_open()) {
       std::string line;
       for (size_t y = 0; std::getline(file, line); y++) {
@@ -25,13 +147,17 @@ class Level {
       }
       file.close();
     }
-  };
+  }
 
   int get(int row, int col) const {
     return map[row][col];
   }
 
-  void draw() {
+  void update(float dt) {
+    for (auto& obs : obstacles) obs.update(dt);
+  }
+
+  void draw() const {
     for (size_t y = 0; y < map.size(); y++) {
       for (size_t x = 0; x < map[0].size(); x++) {
         if (map[y][x] == 1) {
@@ -45,10 +171,14 @@ class Level {
         }
       }
     }
+
+    for (const auto& obs : obstacles) {
+      obs.draw();
+    };
   }
 };
 
-bool sweepAABB(vec2& pos, vec2 size, vec2 delta, std::shared_ptr<Level>& level) {
+bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, std::shared_ptr<Level>& level) {
   if (delta.x != 0) {
     float nx = pos.x + delta.x;
     float x_edge = delta.x > 0 ? nx + size.x - 1 : nx;
@@ -105,12 +235,12 @@ class Player {
   void input() {
     dir.x = IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
     dir.y = IsKeyDown(KEY_DOWN) - IsKeyDown(KEY_UP);
-    dir.norm();
+    dir = dir.norm();
   }
 
   void move(float dt, std::shared_ptr<Level> level) {
     vec2 delta = dir * speed * dt;
-    sweepAABB(pos, size, delta, level);
+    sweep_aabb(pos, size, delta, level);
   }
 
   void update(float dt, std::shared_ptr<Level> level) {
@@ -140,7 +270,8 @@ class Game {
  public:
   Game() {
     InitWindow(win.x, win.y, "The Impossible Game");
-    level = std::make_shared<Level>("levels/1/map.txt");
+    // SetTargetFPS(60);
+    level = std::make_shared<Level>(1);
   }
 
   void run() {
@@ -154,9 +285,10 @@ class Game {
     float dt = GetFrameTime();
 
     player.update(dt, level);
+    level->update(dt);
   }
 
-  void drawGrid(float spacing) {
+  void draw_grid(float spacing) {
     for (int x = 0; x < COLS; x++) {
       DrawLine(x * spacing, 0, x * spacing, win.y, GRID_COLOR);
     }
@@ -169,8 +301,8 @@ class Game {
     BeginDrawing();
     ClearBackground(BG_COLOR);
 
+    // draw_grid(SIZE);
     level->draw();
-    drawGrid(SIZE);
     player.draw();
 
     DrawFPS(0, 0);
@@ -182,43 +314,10 @@ class Game {
   }
 };
 
-const Color CHECKPOINT = GetColor(0x91eda9ff);
-
-const Vector2 screen{1280, 720};
-const float tile_size = 40.0f;
-const float half_tile = tile_size / 2;
-const int cols = screen.x / tile_size;
-const int rows = screen.y / tile_size;
-
-float ball_speed = 300;
-
-struct Circle {
-  Vector2 pos;
-  float radius;
-};
-
-struct Obstacle : public Circle {
-  Vector2 dir;
-  float speed;
-
-  Obstacle(Vector2 pos, float radius) : Circle{pos, radius} {}
-  Obstacle(Vector2 pos, float radius, Vector2 dir, float speed)
-      : Circle{pos, radius}, dir(dir), speed(speed) {}
-};
-
-struct Square {
-  Vector2 pos;
-  float size;
-
-  Rectangle rect() const {
-    return {
-      .x = pos.x,
-      .y = pos.y,
-      .width = size,
-      .height = size,
-    };
-  }
-};
+int main() {
+  Game game;
+  game.run();
+}
 
 // struct Game {
 //   enum Screen {
@@ -434,8 +533,3 @@ struct Square {
 //     CloseWindow();
 //   }
 // };
-
-int main() {
-  Game game;
-  game.run();
-}

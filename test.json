@@ -1,7 +1,4 @@
 {
-  "start": [1, 2],
-  "obstacles": {
-    "a": [3, 3],
-    "b": [5, 6]
-  }
+  "name": "Jordi",
+  "age": 25
 }

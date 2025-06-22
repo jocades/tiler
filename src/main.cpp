@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
+#include <unordered_map>
 
 #include "json.hpp"
 #include "raylib.h"
@@ -187,9 +187,11 @@ class Level {
       }
     }
 
-    for (const auto& obs : obstacles) obs.draw();
     DrawRectangleRec(start, CHECKPOINT_COLOR);
     DrawRectangleRec(finish, CHECKPOINT_COLOR);
+
+    for (const auto& obs : obstacles) obs.draw();
+    for (const auto& coin : coins) coin.draw();
   }
 };
 
@@ -238,12 +240,52 @@ bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, Level* level) {
   return true;
 }
 
+class FadeAnimation {
+ public:
+  float frame_delay;
+  int index = 0;
+  float timer = 0;
+  bool done = false;
+  std::vector<float> frames;
+
+  FadeAnimation(float duration, float steps) : frame_delay(duration / steps) {
+    for (int i = steps; i >= 0; i--) {
+      frames.push_back(i / (steps - 1));
+    }
+  }
+
+  void reset() {
+    index = 0;
+    timer = 0;
+    done = false;
+  }
+
+  float current_frame() const {
+    return frames[index];
+  }
+
+  void update(float dt) {
+    if (done) return;
+    timer += dt;
+    if (timer >= frame_delay) {
+      timer = 0;
+      index++;
+      if (index >= (int)frames.size()) {
+        index = frames.size() - 1;
+        done = true;
+      }
+    }
+  }
+};
+
 class Player {
  public:
   vec2 pos{win.x / 2, win.y / 2};
   vec2 dir;
   vec2 size = {25, 25};
   float speed = 200;
+  float dead = false;
+  FadeAnimation fade{1, 21};
 
   Player() = default;
 
@@ -263,12 +305,22 @@ class Player {
   }
 
   void update(float dt, Level* level) {
+    if (dead) {
+      fade.update(dt);
+      if (fade.done) {
+        dead = false;
+        level->set_player(pos, size);
+      }
+      return;
+    }
+
     input();
     move(dt, level);
   }
 
   void draw() const {
-    DrawRectangleV(pos, size, ORANGE);
+    float alpha = dead ? fade.current_frame() : 1.0f;
+    DrawRectangleV(pos, size, Fade(ORANGE, alpha));
   }
 };
 
@@ -294,6 +346,18 @@ class LevelManager {
   }
 };
 
+class AssetManager {
+ public:
+  Music music;
+  std::unordered_map<std::string, Sound> sounds;
+
+  void load() {
+    music = LoadMusicStream("assets/music/theme.mp3");
+    sounds["hit"] = LoadSound("assets/sounds/hit.mp3");
+    sounds["collect"] = LoadSound("assets/sounds/collect.mp3");
+  }
+};
+
 class Game {
  private:
   enum Screen {
@@ -306,15 +370,20 @@ class Game {
   const Color GRID_COLOR = GetColor(0xbcc2beff);
 
   Player player;
-  int deaths;
+  int deaths = 0;
 
   Screen screen = Screen::Start;
   LevelManager level_manager;
   Level* level = nullptr;
 
+  AssetManager asset_manager;
+
  public:
   Game() {
     InitWindow(win.x, win.y, "The Impossible Game");
+    InitAudioDevice();
+    asset_manager.load();
+    PlayMusicStream(asset_manager.music);
   }
 
   void run() {
@@ -338,11 +407,15 @@ class Game {
     level->update(dt);
     player.update(dt, level);
 
+    if (player.dead) return;
+
     Rectangle rect = player.rect();
     for (auto& obs : level->obstacles) {
       if (CheckCollisionCircleRec(obs.pos, obs.radius, rect)) {
+        PlaySound(asset_manager.sounds["hit"]);
         deaths += 1;
-        level->set_player(player.pos, player.size);
+        player.dead = true;
+        player.fade.reset();
         return;
       }
 
@@ -367,6 +440,7 @@ class Game {
   }
 
   void update() {
+    UpdateMusicStream(asset_manager.music);
     switch (screen) {
       case Start: update_start(); break;
       case Play: update_play(); break;
@@ -428,6 +502,7 @@ class Game {
   void draw() {
     BeginDrawing();
     ClearBackground(BG_COLOR);
+    draw_grid(SIZE);
     switch (screen) {
       case Start: draw_start(); break;
       case Play: draw_play(); break;
@@ -438,6 +513,7 @@ class Game {
   }
 
   ~Game() {
+    CloseAudioDevice();
     CloseWindow();
   }
 };

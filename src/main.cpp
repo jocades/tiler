@@ -30,6 +30,18 @@ void from_json(const json& j, Rectangle& r) {
   j.at(3).get_to(r.height);
 }
 
+vec2 tiled(vec2 v) {
+  return v * SIZE;
+}
+
+Rectangle tiled(Rectangle r) {
+  r.x *= SIZE;
+  r.y *= SIZE;
+  r.width *= SIZE;
+  r.height *= SIZE;
+  return r;
+}
+
 class Move {
  public:
   enum Kind {
@@ -88,15 +100,13 @@ void from_json(const json& j, Circle& c) {
 
   if (j["move"]["kind"] == "linear") {
     Bounds bounds = j["move"]["bounds"].template get<Bounds>();
-    bounds.min *= SIZE;
-    bounds.max *= SIZE;
-
-    std::unique_ptr<Linear> linear = std::make_unique<Linear>(
+    bounds.min = tiled(bounds.min);
+    bounds.max = tiled(bounds.max);
+    c.move = std::make_unique<Linear>(
       j["move"]["dir"].template get<vec2>().norm(),
       j["move"]["speed"].template get<float>(),
       bounds
     );
-    c.move = std::move(linear);
   }
 }
 
@@ -110,15 +120,20 @@ struct Coin {
   }
 };
 
+class Player;
+
 class Level {
  public:
   std::vector<std::vector<int>> map;
-  const std::pair<Color, Color> TILE_COLORS = {GetColor(0xe3e3e3ff), GetColor(0xc7c7c7ff)};
-
   Rectangle start;
   Rectangle finish;
   std::vector<Circle> obstacles;
   std::vector<Rectangle> checkpoints;
+  std::vector<Coin> coins;
+  int current_checkpoint = -1;
+
+  const std::pair<Color, Color> TILE_COLORS = {GetColor(0xe3e3e3ff), GetColor(0xc7c7c7ff)};
+  const Color CHECKPOINT_COLOR = GetColor(0x91eda9ff);
 
   Level(int id) : map(ROWS, std::vector<int>(COLS, 0)) {
     std::filesystem::path path = "levels";
@@ -127,14 +142,10 @@ class Level {
     std::ifstream f(path / "data.json");
     if (f.is_open()) {
       json j = json::parse(f);
-      start = j["start"].template get<Rectangle>();
-      finish = j["finish"].template get<Rectangle>();
+      start = tiled(j["start"].template get<Rectangle>());
+      finish = tiled(j["finish"].template get<Rectangle>());
       obstacles = j["balls"].template get<std::vector<Circle>>();
       f.close();
-    }
-
-    for (auto& obs : obstacles) {
-      std::cout << obs.pos << '\n';
     }
 
     std::ifstream file(path / "map.txt");
@@ -151,6 +162,12 @@ class Level {
 
   int get(int row, int col) const {
     return map[row][col];
+  }
+
+  void set_player(vec2& pos, vec2 size) {
+    Rectangle check = current_checkpoint == -1 ? start : checkpoints[current_checkpoint];
+    pos.x = check.x + check.width / 2 - size.x / 2;
+    pos.y = check.y + check.height / 2 - size.y / 2;
   }
 
   void update(float dt) {
@@ -172,9 +189,9 @@ class Level {
       }
     }
 
-    for (const auto& obs : obstacles) {
-      obs.draw();
-    };
+    for (const auto& obs : obstacles) obs.draw();
+    DrawRectangleRec(start, CHECKPOINT_COLOR);
+    DrawRectangleRec(finish, CHECKPOINT_COLOR);
   }
 };
 
@@ -232,6 +249,10 @@ class Player {
 
   Player() = default;
 
+  Rectangle rect() const {
+    return {pos.x, pos.y, size.x, size.y};
+  }
+
   void input() {
     dir.x = IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
     dir.y = IsKeyDown(KEY_DOWN) - IsKeyDown(KEY_UP);
@@ -267,11 +288,14 @@ class Game {
   Player player;
   std::shared_ptr<Level> level;
 
+  int deaths;
+
  public:
   Game() {
     InitWindow(win.x, win.y, "The Impossible Game");
     // SetTargetFPS(60);
     level = std::make_shared<Level>(1);
+    level->set_player(player.pos, player.size);
   }
 
   void run() {
@@ -284,8 +308,25 @@ class Game {
   void update() {
     float dt = GetFrameTime();
 
-    player.update(dt, level);
     level->update(dt);
+    player.update(dt, level);
+
+    Rectangle rect = player.rect();
+    for (auto& obs : level->obstacles) {
+      if (CheckCollisionCircleRec(obs.pos, obs.radius, rect)) {
+        deaths += 1;
+        level->set_player(player.pos, player.size);
+        return;
+      }
+
+      for (int i = 0; i < (int)level->checkpoints.size(); i++) {
+        if (CheckCollisionRecs(rect, level->checkpoints[i])) {
+          level->current_checkpoint = i;
+        }
+      }
+
+      if (level->coins.size() == 0 && CheckCollisionRecs(rect, level->finish)) {}
+    }
   }
 
   void draw_grid(float spacing) {

@@ -120,8 +120,6 @@ struct Coin {
   }
 };
 
-class Player;
-
 class Level {
  public:
   std::vector<std::vector<int>> map;
@@ -195,7 +193,7 @@ class Level {
   }
 };
 
-bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, std::shared_ptr<Level>& level) {
+bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, Level* level) {
   if (delta.x != 0) {
     float nx = pos.x + delta.x;
     float x_edge = delta.x > 0 ? nx + size.x - 1 : nx;
@@ -259,18 +257,40 @@ class Player {
     dir = dir.norm();
   }
 
-  void move(float dt, std::shared_ptr<Level> level) {
+  void move(float dt, Level* level) {
     vec2 delta = dir * speed * dt;
     sweep_aabb(pos, size, delta, level);
   }
 
-  void update(float dt, std::shared_ptr<Level> level) {
+  void update(float dt, Level* level) {
     input();
     move(dt, level);
   }
 
   void draw() const {
     DrawRectangleV(pos, size, ORANGE);
+  }
+};
+
+class LevelManager {
+ public:
+  std::vector<Level> levels;
+  int index = 0;
+
+  LevelManager() {
+    for (int id = 1; id < 3; id++) {
+      levels.emplace_back(id);
+    }
+  }
+
+  Level* current() {
+    return &levels[index];
+  }
+
+  Level* next() {
+    index++;
+    if (index < (int)levels.size()) return current();
+    return nullptr;
   }
 };
 
@@ -286,16 +306,15 @@ class Game {
   const Color GRID_COLOR = GetColor(0xbcc2beff);
 
   Player player;
-  std::shared_ptr<Level> level;
-
   int deaths;
+
+  Screen screen = Screen::Start;
+  LevelManager level_manager;
+  Level* level = nullptr;
 
  public:
   Game() {
     InitWindow(win.x, win.y, "The Impossible Game");
-    // SetTargetFPS(60);
-    level = std::make_shared<Level>(1);
-    level->set_player(player.pos, player.size);
   }
 
   void run() {
@@ -305,7 +324,15 @@ class Game {
     }
   }
 
-  void update() {
+  void update_start() {
+    if (IsKeyPressed(KEY_ENTER)) {
+      level = level_manager.current();
+      level->set_player(player.pos, player.size);
+      screen = Play;
+    }
+  }
+
+  void update_play() {
     float dt = GetFrameTime();
 
     level->update(dt);
@@ -325,7 +352,25 @@ class Game {
         }
       }
 
-      if (level->coins.size() == 0 && CheckCollisionRecs(rect, level->finish)) {}
+      if (level->coins.size() == 0 && CheckCollisionRecs(rect, level->finish)) {
+        screen = Done;
+      }
+    }
+  }
+
+  void update_done() {
+    if (IsKeyPressed(KEY_ENTER)) {
+      if (!(level = level_manager.next())) return;
+      level->set_player(player.pos, player.size);
+      screen = Play;
+    }
+  }
+
+  void update() {
+    switch (screen) {
+      case Start: update_start(); break;
+      case Play: update_play(); break;
+      case Done: update_done(); break;
     }
   }
 
@@ -338,14 +383,56 @@ class Game {
     }
   }
 
+  void draw_start() {
+    const char* text = "START SCREEN";
+    float font_size = 40;
+    float text_width = MeasureText(text, font_size);
+    DrawText(text, win.x / 2 - text_width / 2, win.y / 2 - font_size / 2, font_size, LIGHTGRAY);
+  }
+
+  void draw_header() {
+    DrawRectangle(0, 0, win.x, SIZE, BLACK);
+    int font_size = 20;
+    std::string text = "LEVEL: " + std::to_string(1);
+    DrawText(
+      text.c_str(),
+      win.x / 2 - (float)MeasureText(text.c_str(), font_size) / 2,
+      SIZE / 2,
+      font_size,
+      RAYWHITE
+    );
+    text = "DEATHS: " + std::to_string(deaths);
+    DrawText(
+      text.c_str(),
+      win.x - MeasureText(text.c_str(), font_size) - SIZE,
+      SIZE / 2 - font_size / 2,
+      font_size,
+      RAYWHITE
+    );
+  }
+
+  void draw_play() {
+    draw_grid(SIZE);
+    level->draw();
+    player.draw();
+    draw_header();
+  }
+
+  void draw_done() {
+    const char* text = "LEVEL COMPLETE";
+    float font_size = 40;
+    float text_width = MeasureText(text, font_size);
+    DrawText(text, win.x / 2 - text_width / 2, win.y / 2 - font_size / 2, font_size, LIGHTGRAY);
+  }
+
   void draw() {
     BeginDrawing();
     ClearBackground(BG_COLOR);
-
-    // draw_grid(SIZE);
-    level->draw();
-    player.draw();
-
+    switch (screen) {
+      case Start: draw_start(); break;
+      case Play: draw_play(); break;
+      case Done: draw_done(); break;
+    }
     DrawFPS(0, 0);
     EndDrawing();
   }

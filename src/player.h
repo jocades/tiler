@@ -2,17 +2,24 @@
 
 #include <raylib.h>
 
-struct Player {
-  Vector2 pos = {0, 0};
-  Vector2 size;
-  Vector2 dir = {0, 0};
-  float speed;
+#include "animation.h"
+#include "level.h"
+#include "vec2.h"
 
-  Rectangle rect() const;
+class Player {
+ public:
+  vec2 pos;
+  vec2 dir;
+  vec2 size = {25, 25};
+  float speed = 200;
+  float dead = false;
+  FadeAnimation fade{1, 21};
+
+  Player() = default;
 
   void input();
-  void move(float dt);
-
-  void update(float dt);
+  void move(float dt, Level* level);
+  void update(float dt, Level* level);
   void draw() const;
+  Rectangle rect() const;
 };

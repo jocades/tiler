@@ -39,22 +39,16 @@ void from_json(const json& j, vec2& v) {
 // }
 
 int main() {
-  vec2 v = {2.5f, 3.2f};
-  json j = v;
-
-  std::cout << j << '\n';
-  auto v1 = j.template get<vec2>();
-
-  std::ofstream o("test2.json");
-  if (!o.is_open()) return 1;
-  o << j.dump();
-  o.close();
-
-  std::cout << v1.x << v1.y << '\n';
-
   std::ifstream f("test.json");
   if (!f.is_open()) return 1;
-  json j1 = json::parse(f);
-  // std::cout << j1 << '\n';
-  // User u3 = j1.template get<User>();
+  json j = json::parse(f);
+
+  // std::cout << j.contains("age") << '\n';
+  // std::cout << j.contains("x") << '\n';
+
+  if (!j["age"].is_null()) {
+    std::cout << "ok\n";
+  }
+
+  if (j["x"].is_null()) std::cout << "isnull\n";
 }

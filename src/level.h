@@ -4,30 +4,80 @@
 
 #include <vector>
 
-struct Obstacle {
-  Vector2 pos;
-  Vector2 dir;
-  float radius;
+#include "vec2.h"
+
+class Move {
+ public:
+  enum Kind {
+    Linear
+  };
+  Kind kind;
+  virtual void update(float dt, vec2& pos) = 0;
+  virtual ~Move() = default;
+};
+
+struct Bounds {
+  vec2 min;
+  vec2 max;
+};
+
+class Linear : public Move {
+ public:
+  vec2 dir;
   float speed;
+  Bounds bounds;
+
+  Linear(vec2 dir, float speed, Bounds bounds);
+
+  void update(float dt, vec2& pos) override;
+};
+
+struct Circle {
+  vec2 pos;
+  float radius = 10;
+  std::unique_ptr<Move> move;
+
+  void update(float dt);
+  void draw() const;
 };
 
 struct Coin {
-  Vector2 pos;
-  float radius;
+  vec2 pos;
+  float radius = 7.5;
+
+  Coin(vec2 pos);
+
+  void draw() const;
 };
 
-struct Level {
+class Level {
+ public:
   std::vector<std::vector<int>> map;
-  std::vector<std::pair<Vector2, Vector2>> perimeter;
+  Rectangle start;
+  Rectangle finish;
+  std::vector<Circle> obstacles;
   std::vector<Rectangle> checkpoints;
-  std::vector<Obstacle> obstacles;
   std::vector<Coin> coins;
+  int current_checkpoint = -1;
 
-  Level() = default;
-  Level(const char* filename);
+  const std::pair<Color, Color> TILE_COLORS = {GetColor(0xe3e3e3ff), GetColor(0xc7c7c7ff)};
+  const Color CHECKPOINT_COLOR = GetColor(0x91eda9ff);
 
-  void load(const char* filename);
-  void draw();
+  Level(int id);
 
-  bool isWall(int x, int y);
+  int get(int row, int col) const;
+  void set_player(vec2& pos, vec2 size);
+  void update(float dt);
+  void draw() const;
+};
+
+class LevelManager {
+ public:
+  std::vector<Level> levels;
+  size_t index = 0;
+
+  LevelManager();
+
+  Level* current();
+  Level* next();
 };

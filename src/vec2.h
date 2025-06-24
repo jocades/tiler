@@ -5,6 +5,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "json.h"
+
 struct vec2 {
   float x;
   float y;
@@ -14,7 +16,9 @@ struct vec2 {
 
   // Raylib conversions
   vec2(const Vector2& v) : x(v.x), y(v.y) {}
-  operator Vector2() const { return {x, y}; }
+  operator Vector2() const {
+    return {x, y};
+  }
 
   // Addition
   vec2 operator+(const vec2& other) const {
@@ -101,3 +105,12 @@ struct vec2 {
     return stream;
   }
 };
+
+inline void to_json(nlohmann::json& j, const vec2& v) {
+  j = nlohmann::json::array({v.x, v.y});
+}
+
+inline void from_json(const nlohmann::json& j, vec2& v) {
+  j.at(0).get_to(v.x);
+  j.at(1).get_to(v.y);
+}

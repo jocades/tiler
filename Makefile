@@ -19,7 +19,6 @@ OBJECTS := $(addprefix $(BUILD_DIR)/, $(notdir $(SOURCES:.cpp=.o)))
 
 $(BINARY): $(OBJECTS)
 	$(CC) $(CFLAGS) $(INCFLAGS) $(OBJECTS) -o $@ $(LFLAGS)
-	cp $@ .
 
 $(BUILD_DIR)/%.o: src/%.cpp
 	mkdir -p $(dir $@)
@@ -28,7 +27,7 @@ $(BUILD_DIR)/%.o: src/%.cpp
 -include $(OBJECTS:.o=.d)
 
 run: $(BINARY)
-	./$(NAME)
+	./$(BINARY)
 
 clean:
 	rm -rf build

@@ -3,8 +3,9 @@
 #include <fstream>
 
 #include "conf.h"
+#include "serde.h"
 
-using conf::SIZE, nlohmann::json;
+using conf::SIZE;
 
 Linear::Linear(vec2 dir, float speed, Bounds bounds) : dir(dir), speed(speed), bounds(bounds) {}
 
@@ -30,13 +31,6 @@ void Coin::draw() const {
   DrawCircleLinesV(pos, radius, BLACK);
 }
 
-void from_json(const nlohmann::json& j, Rectangle& r) {
-  j.at(0).get_to(r.x);
-  j.at(1).get_to(r.y);
-  j.at(2).get_to(r.width);
-  j.at(3).get_to(r.height);
-}
-
 vec2 tiled(vec2 v) {
   return v * conf::SIZE;
 }
@@ -49,34 +43,13 @@ Rectangle tiled(Rectangle r) {
   return r;
 }
 
-void from_json(const json& j, Bounds& b) {
-  j.at("min").get_to(b.min);
-  j.at("max").get_to(b.max);
-}
-
-void from_json(const json& j, Circle& c) {
-  j.at("pos").get_to(c.pos);
-  c.pos *= SIZE;
-
-  if (j["move"]["kind"] == "linear") {
-    Bounds bounds = j["move"]["bounds"].template get<Bounds>();
-    bounds.min = tiled(bounds.min);
-    bounds.max = tiled(bounds.max);
-    c.move = std::make_unique<Linear>(
-      j["move"]["dir"].template get<vec2>().norm(),
-      j["move"]["speed"].template get<float>(),
-      bounds
-    );
-  }
-}
-
 Level::Level(int id) : map(conf::ROWS, std::vector<int>(conf::COLS, 0)) {
   std::filesystem::path path = "levels";
   path.append(std::to_string(id));
 
   std::ifstream f(path / "data.json");
   if (f.is_open()) {
-    nlohmann::json j = nlohmann::json::parse(f);
+    json j = json::parse(f);
     start = tiled(j["start"].template get<Rectangle>());
     finish = tiled(j["finish"].template get<Rectangle>());
     obstacles = j["balls"].template get<std::vector<Circle>>();

@@ -1,5 +1,7 @@
 #include <cfloat>
 #include <cstdio>
+#include <fstream>
+#include <ostream>
 #define RAYGUI_IMPLEMENTATION
 
 #include <raylib.h>
@@ -8,11 +10,13 @@
 #include <unordered_map>
 
 #include "conf.h"
+#include "json.h"
 #include "level.h"
 #include "player.h"
 #include "raygui.h"
+#include "serde.h"
 
-using conf::win, conf::SIZE, conf::ROWS, conf::COLS;
+using conf::win, conf::SIZE, conf::ROWS, conf::COLS, nlohmann::json;
 
 class AssetManager {
  public:
@@ -32,24 +36,39 @@ class LevelBuilder {
     Floor,
     Ball,
     Check,
+    Start,
+    Finish,
   };
 
   std::vector<std::vector<char>> map;
   Rectangle start;
   Rectangle finish;
-  std::vector<struct Circle> obstacles;
+  std::vector<Circle> obstacles;
+  std::vector<Circle> live_obstacles;
   std::vector<Rectangle> checkpoints;
   std::vector<Coin> coins;
   Shape current_shape = Ball;
   vec2 mouse;
 
- public:
-  LevelBuilder() : map(conf::ROWS, std::vector<char>(conf::COLS, '.')) {}
+  void save() {
+    std::ofstream f("test.txt");
+    if (!f.is_open()) return;
+    for (auto& row : map) {
+      std::string line(row.data(), row.size());
+      line.push_back('\n');
+      f << line;
+    }
 
-  void update() {
-    float dt = GetFrameTime();
-    mouse = GetMousePosition();
-    for (auto& obs : obstacles) obs.update(dt);
+    std::ofstream d("data.json");
+    if (!d.is_open()) return;
+    json j = json::object();
+    j["start"] = {start.x / SIZE, start.y / SIZE, start.width / SIZE, start.height / SIZE};
+    j["finish"] = {finish.x / SIZE, finish.y / SIZE, finish.width / SIZE, finish.height / SIZE};
+    j["balls"] = json::array();
+    for (auto& obs : obstacles) {
+      j["balls"].push_back(obs);
+    }
+    d << j.dump(2);
   }
 
   vec2 nearest_snap_point(int r, int c) {
@@ -88,7 +107,16 @@ class LevelBuilder {
     return {tx, ty};
   }
 
-  void draw() {
+ public:
+  LevelBuilder() : map(conf::ROWS, std::vector<char>(conf::COLS, '.')) {}
+
+  void update() {
+    float dt = GetFrameTime();
+    mouse = GetMousePosition();
+    // for (auto& obs : obstacles) obs.update(dt);
+  }
+
+  void draw_grid() {
     int HALF_TILE = SIZE / 2;
     for (int y = 0; y < win.y / HALF_TILE; y++) {
       DrawLine(0, y * HALF_TILE, win.x, y * HALF_TILE, Fade(conf::GRID_COLOR, 0.5));
@@ -96,7 +124,9 @@ class LevelBuilder {
     for (int x = 0; x < win.x / HALF_TILE; x++) {
       DrawLine(x * HALF_TILE, 0, x * HALF_TILE, win.y, Fade(conf::GRID_COLOR, 0.5));
     }
+  }
 
+  void draw_level() {
     for (size_t y = 0; y < map.size(); y++) {
       for (size_t x = 0; x < map[0].size(); x++) {
         if (map[y][x] == '#') {
@@ -111,16 +141,38 @@ class LevelBuilder {
       }
     }
 
+    DrawRectangleRec(start, conf::CHECKPOINT_COLOR);
+    DrawRectangleRec(finish, conf::CHECKPOINT_COLOR);
     for (const auto& obs : obstacles) obs.draw();
+  }
+
+  void draw() {
+    draw_grid();
+    draw_level();
+
+    DrawLine(0, SIZE * 2, win.x - SIZE * 2, SIZE * 2, BLACK);
+    DrawLine(win.x - SIZE * 3, SIZE * 2, win.x - SIZE * 3, win.y, BLACK);
 
     std::string text = "floor";
     if (current_shape == Ball) text = "circle";
     else if (current_shape == Check) text = "check";
+    else if (current_shape == Start) text = "start";
+    else if (current_shape == Finish) text = "finish";
 
     if (GuiButton({24, 24, 120, 30}, text.c_str())) {
-      current_shape = (Shape)((current_shape + 1) % 3);
+      current_shape = (Shape)((current_shape + 1) % 5);
       return;
     }
+
+    if (GuiButton({win.x - 24 - 120, 24 + 32, 120, 30}, "Save")) {
+      save();
+      return;
+    }
+
+    if (GuiButton({win.x - 24 - 120, 24, 120, 30}, "Play")) {}
+
+    // Done place items if mouse over controls
+    if (mouse.x >= win.x - SIZE * 3 || mouse.y <= SIZE * 2) return;
 
     int r = mouse.y / SIZE, c = mouse.x / SIZE;
     vec2 nearest = nearest_snap_point(r, c);
@@ -135,14 +187,13 @@ class LevelBuilder {
           SIZE,
           (r + c) % 2 == 0 ? conf::TILE_COLORS.first : conf::TILE_COLORS.second
         );
-        break;
-      }
-      case Ball: {
-        DrawCircleV(nearest, 10, BLUE);
-        break;
-      };
-      case Check: break;
-      default: break;  // Unreachable
+      } break;
+      case Ball: DrawCircleV(nearest, 10, BLUE); break;
+      case Check: DrawRectangle(c * SIZE, r * SIZE, SIZE, SIZE, conf::CHECKPOINT_COLOR); break;
+      case Finish:
+      case Start: {
+        DrawRectangle(c * SIZE, r * SIZE, SIZE * 2, SIZE * 2, conf::CHECKPOINT_COLOR);
+      } break;
     }
 
     switch (current_shape) {
@@ -157,12 +208,26 @@ class LevelBuilder {
             .min = nearest - 10 * SIZE,
             .max = nearest + 10 * SIZE,
           };
-          obstacles.push_back(Circle{.pos = nearest, .move = std::make_unique<Linear>(vec2(1,0), 200, bounds)});
+          obstacles.push_back(
+            Circle{.pos = nearest, .move = std::make_unique<Linear>(vec2(1, 0), 200, bounds)}
+          );
           printf("%zu\n", obstacles.size());
+        } else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+          std::erase_if(obstacles, [&nearest](const Circle& c) { return c.pos == nearest; });
         }
+
       } break;
       case Check: break;
-      default: break;  // Unreachable
+      case Start: {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          start = {(float)c * SIZE, (float)r * SIZE, SIZE * 2, SIZE * 2};
+        }
+      } break;
+      case Finish: {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          finish = {(float)c * SIZE, (float)r * SIZE, SIZE * 2, SIZE * 2};
+        }
+      } break;
     }
 
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {

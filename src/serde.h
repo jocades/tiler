@@ -28,6 +28,10 @@ inline void from_json(const json& j, Bounds& b) {
   j.at("max").get_to(b.max);
 }
 
+inline void to_json(json& j, Bounds& b) {
+  j = json::object({{"min", b.min}, {"max", b.max}});
+}
+
 inline void from_json(const json& j, Circle& c) {
   j.at("pos").get_to(c.pos);
   c.pos *= SIZE;
@@ -41,5 +45,22 @@ inline void from_json(const json& j, Circle& c) {
       j["move"]["speed"].template get<float>(),
       bounds
     );
+  }
+}
+
+inline void to_json(json& j, const Circle& c) {
+  j = {{"pos", c.pos / SIZE}, {"move", json::object()}};
+  switch (c.move->kind) {
+    case Move::Linear: {
+      j["move"]["kind"] = "linear";
+      Linear* linear = (Linear*)(c.move.get());
+      j["move"]["dir"] = linear->dir;
+      j["move"]["speed"] = linear->speed;
+      j["move"]["bounds"] = {
+        {"min", linear->bounds.min / SIZE},
+        {"max", linear->bounds.max / SIZE}
+      };
+    } break;
+    default: break;
   }
 }

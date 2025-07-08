@@ -73,6 +73,7 @@ Level::Level(int id) : map(conf::ROWS, std::vector<char>(conf::COLS, 0)) {
 }
 
 char Level::get(int row, int col) const {
+  if (row < 0 || row >= conf::ROWS || col < 0 || col >= conf::COLS) return '.';
   return map[row][col];
 }
 

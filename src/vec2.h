@@ -14,9 +14,7 @@ struct vec2 {
 
   // Raylib conversions
   vec2(const Vector2& v) : x(v.x), y(v.y) {}
-  operator Vector2() const {
-    return {x, y};
-  }
+  operator Vector2() const { return {x, y}; }
 
   // Addition
   vec2 operator+(const vec2& other) const {

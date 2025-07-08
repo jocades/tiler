@@ -14,7 +14,7 @@ bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, Level* level) {
     int row_end = (pos.y + size.y - 1) / SIZE;
 
     for (int r = row_start; r <= row_end; r++) {
-      if (level->get(r, c) == 0) {
+      if (level->get(r, c) == '.') {
         // Snap to edge of tile
         if (delta.x > 0) pos.x = c * SIZE - size.x;
         else pos.x = (c + 1) * SIZE;
@@ -35,7 +35,7 @@ bool sweep_aabb(vec2& pos, vec2 size, vec2 delta, Level* level) {
     int col_end = (pos.x + size.x - 1) / SIZE;
 
     for (int c = col_start; c <= col_end; c++) {
-      if (level->get(r, c) == 0) {
+      if (level->get(r, c) == '.') {
         if (delta.y > 0) pos.y = r * SIZE - size.y;
         else pos.y = (r + 1) * SIZE;
         delta.y = 0;

@@ -4,8 +4,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "../src/ops.h"
-
 const Color CHECKPOINT = GetColor(0x91eda9ff);
 
 Vector2 screen{1280, 720};
@@ -13,7 +11,10 @@ const float tile_size = 40.0f;
 const int cols = screen.x / tile_size;
 const int rows = screen.y / tile_size;
 
-enum Kind { Floor = 1, Checkpoint };
+enum Kind {
+  Floor = 1,
+  Checkpoint
+};
 Kind current_kind = Floor;
 
 std::vector<std::vector<int>> map(rows, std::vector<int>(cols, 0));

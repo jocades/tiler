@@ -52,7 +52,7 @@ struct Coin {
 
 class Level {
  public:
-  std::vector<std::vector<int>> map;
+  std::vector<std::vector<char>> map;
   Rectangle start;
   Rectangle finish;
   std::vector<Circle> obstacles;
@@ -60,12 +60,9 @@ class Level {
   std::vector<Coin> coins;
   int current_checkpoint = -1;
 
-  const std::pair<Color, Color> TILE_COLORS = {GetColor(0xe3e3e3ff), GetColor(0xc7c7c7ff)};
-  const Color CHECKPOINT_COLOR = GetColor(0x91eda9ff);
-
   Level(int id);
 
-  int get(int row, int col) const;
+  char get(int row, int col) const;
   void set_player(vec2& pos, vec2 size);
   void update(float dt);
   void draw() const;
@@ -76,7 +73,7 @@ class LevelManager {
   std::vector<Level> levels;
   size_t index = 0;
 
-  LevelManager();
+  LevelManager(int level_count);
 
   Level* current();
   Level* next();

@@ -5,7 +5,7 @@
 #include "conf.h"
 #include "serde.h"
 
-using conf::SIZE;
+using conf::SIZE, conf::TILE_COLORS, conf::CHECKPOINT_COLOR;
 
 Linear::Linear(vec2 dir, float speed, Bounds bounds) : dir(dir), speed(speed), bounds(bounds) {}
 
@@ -43,7 +43,7 @@ Rectangle tiled(Rectangle r) {
   return r;
 }
 
-Level::Level(int id) : map(conf::ROWS, std::vector<int>(conf::COLS, 0)) {
+Level::Level(int id) : map(conf::ROWS, std::vector<char>(conf::COLS, 0)) {
   std::filesystem::path path = "levels";
   path.append(std::to_string(id));
 
@@ -65,14 +65,14 @@ Level::Level(int id) : map(conf::ROWS, std::vector<int>(conf::COLS, 0)) {
     std::string line;
     for (size_t y = 0; std::getline(file, line); y++) {
       for (size_t x = 0; x < line.size(); x++) {
-        map[y][x] = line[x] - '0';
+        map[y][x] = line[x];
       }
     }
     file.close();
   }
 }
 
-int Level::get(int row, int col) const {
+char Level::get(int row, int col) const {
   return map[row][col];
 }
 
@@ -89,7 +89,7 @@ void Level::update(float dt) {
 void Level::draw() const {
   for (size_t y = 0; y < map.size(); y++) {
     for (size_t x = 0; x < map[0].size(); x++) {
-      if (map[y][x] == 1) {
+      if (map[y][x] == '#') {
         DrawRectangle(
           x * SIZE,
           y * SIZE,
@@ -108,8 +108,8 @@ void Level::draw() const {
   for (const auto& coin : coins) coin.draw();
 }
 
-LevelManager::LevelManager() {
-  for (int id = 1; id < 3; id++) {
+LevelManager::LevelManager(int level_count) {
+  for (int id = 1; id <= level_count; id++) {
     levels.emplace_back(id);
   }
 }

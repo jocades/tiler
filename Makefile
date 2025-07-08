@@ -1,5 +1,5 @@
 CC := clang++
-CFLAGS := -std=c++20 -Wall -Wextra -Werror
+CFLAGS := -std=c++20 -Wall -Wextra
 INCFLAGS := -I/opt/homebrew/opt/raylib/include
 LFLAGS := -L/opt/homebrew/opt/raylib/lib -lraylib \
 		  -framework OpenGL -framework IOKit -framework Cocoa

@@ -22,6 +22,9 @@ struct vec2 {
   vec2 operator+(const vec2& other) const {
     return {x + other.x, y + other.y};
   }
+  vec2 operator+(float scalar) {
+    return {x + scalar, y + scalar};
+  }
   void operator+=(const vec2& other) {
     x += other.x;
     y += other.y;
@@ -34,6 +37,9 @@ struct vec2 {
   // Subtraction
   vec2 operator-(const vec2& other) const {
     return {x - other.x, y - other.y};
+  }
+  vec2 operator-(float scalar) {
+    return {x - scalar, y - scalar};
   }
   void operator-=(const vec2& other) {
     x -= other.x;

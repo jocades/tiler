@@ -115,6 +115,12 @@ LevelManager::LevelManager(int level_count) {
   }
 }
 
+Level* LevelManager::get(size_t level_num) {
+  if (level_num > levels.size()) return nullptr;
+  index = level_num - 1;
+  return current();
+}
+
 Level* LevelManager::current() {
   return &levels[index];
 }

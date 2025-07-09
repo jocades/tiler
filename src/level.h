@@ -35,7 +35,7 @@ class Linear : public Move {
 struct Circle {
   vec2 pos;
   float radius = 10;
-  std::unique_ptr<Move> move;
+  std::shared_ptr<Move> move;
 
   void update(float dt);
   void draw() const;
@@ -75,6 +75,7 @@ class LevelManager {
 
   LevelManager(int level_count);
 
+  Level* get(size_t level_num);
   Level* current();
   Level* next();
 };

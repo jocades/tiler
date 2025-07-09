@@ -40,7 +40,7 @@ inline void from_json(const json& j, Circle& c) {
     Bounds bounds = j["move"]["bounds"].template get<Bounds>();
     bounds.min *= SIZE;
     bounds.max *= SIZE;
-    c.move = std::make_unique<Linear>(
+    c.move = std::make_shared<Linear>(
       j["move"]["dir"].template get<vec2>().norm(),
       j["move"]["speed"].template get<float>(),
       bounds
